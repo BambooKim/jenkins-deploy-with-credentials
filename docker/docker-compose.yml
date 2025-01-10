@@ -1,0 +1,26 @@
+version: '3.9'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: mysql-container
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: demo
+      MYSQL_USER: bambookim
+      MYSQL_PASSWORD: bambookim
+    volumes:
+      - ./mysql_data:/var/lib/mysql
+    ports:
+      - "13306:3306"
+
+  jenkins:
+    image: jenkins/jenkins:lts
+    container_name: jenkins-container
+    user: root
+    volumes:
+      - ./jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "8080:8080"
+      - "50000:50000"
