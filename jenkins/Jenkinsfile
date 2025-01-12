@@ -1,0 +1,64 @@
+pipeline {
+    agent any
+    stages {
+        stage('Clone Repository') {
+            steps {
+                git branch: 'main', url: 'https://github.com/BambooKim/jenkins-deploy-with-credentials.git'
+            }
+        }
+        stage('Build') {
+            steps {
+                sh 'cd app && ./gradlew build'
+            }
+        }
+        stage('Send to Server') {
+            steps {
+                script {
+                    def remoteUser = "ubuntu"
+                    def remoteHost = "133.186.223.242"
+                    def remotePath = "/home/ubuntu/app"
+                    def jarFile = "app/build/libs/app-0.0.1-SNAPSHOT.jar"
+
+                    // SSH with the PEM key
+                    withCredentials([sshUserPrivateKey(credentialsId: 'SSH_PEM_JENKINS_TEST', keyFileVariable: 'SSH_KEY')]) {
+                        sh """
+                            scp -i ${SSH_KEY} ${jarFile} ${remoteUser}@${remoteHost}:${remotePath}
+                        """
+                    }
+                }
+            }
+        }
+        stage('Run Application on Server') {
+            steps {
+                script {
+                    def remoteUser = "ubuntu"
+                    def remoteHost = "133.186.223.242"
+                    def jarPath = "/home/ubuntu/app/app-0.0.1-SNAPSHOT.jar"
+                    def pidFile = "/home/ubuntu/app/app.pid"
+
+                    // SSH to execute the JAR on the server
+                    withCredentials([sshUserPrivateKey(credentialsId: 'SSH_PEM_JENKINS_TEST', keyFileVariable: 'SSH_KEY')]) {
+                                    sh """
+                                        ssh -i ${SSH_KEY} ${remoteUser}@${remoteHost} '
+                                        # Check if the application is running
+                                        if [ -f ${pidFile} ]; then
+                                            echo "Found existing application PID file. Stopping the application..."
+                                            kill -9 \$(cat ${pidFile}) || echo "Failed to stop the application."
+                                            rm -f ${pidFile}
+                                        fi
+
+                                        # Start the new application
+                                        echo "Starting the new application..."
+                                        nohup java -jar ${jarPath} > /home/ubuntu/app/application.log 2>&1 &
+
+                                        # Save the PID of the new application
+                                        echo \$! > ${pidFile}
+                                        echo "Application started with PID: \$(cat ${pidFile})"
+                                        '
+                                    """
+                    }
+                }
+            }
+        }
+    }
+}
