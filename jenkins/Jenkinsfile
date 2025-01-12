@@ -1,5 +1,10 @@
 pipeline {
     agent any
+
+    parameters {
+        string(name: 'REMOTE_HOST', description: 'The remote server IP address')
+    }
+
     stages {
         stage('Clone Repository') {
             steps {
@@ -8,14 +13,16 @@ pipeline {
         }
         stage('Build') {
             steps {
-                sh 'cd app && ./gradlew build'
+                sh """
+                    cd app && ./gradlew build
+                """
             }
         }
         stage('Send to Server') {
             steps {
                 script {
                     def remoteUser = "ubuntu"
-                    def remoteHost = "133.186.223.242"
+                    def remoteHost = params.REMOTE_HOST
                     def remotePath = "/home/ubuntu/app"
                     def jarFile = "app/build/libs/app-0.0.1-SNAPSHOT.jar"
 
@@ -32,12 +39,15 @@ pipeline {
             steps {
                 script {
                     def remoteUser = "ubuntu"
-                    def remoteHost = "133.186.223.242"
+                    def remoteHost = params.REMOTE_HOST
                     def jarPath = "/home/ubuntu/app/app-0.0.1-SNAPSHOT.jar"
                     def pidFile = "/home/ubuntu/app/app.pid"
 
                     // SSH to execute the JAR on the server
-                    withCredentials([sshUserPrivateKey(credentialsId: 'SSH_PEM_JENKINS_TEST', keyFileVariable: 'SSH_KEY')]) {
+                    withCredentials([sshUserPrivateKey(credentialsId: 'SSH_PEM_JENKINS_TEST', keyFileVariable: 'SSH_KEY'),
+                                    string(credentialsId: 'DB_URL', variable: 'DB_URL'),
+                                    string(credentialsId: 'DB_USERNAME', variable: 'DB_USERNAME'),
+                                    string(credentialsId: 'DB_PASSWORD', variable: 'DB_PASSWORD')]) {
                                     sh """
                                         ssh -i ${SSH_KEY} ${remoteUser}@${remoteHost} '
                                         # Check if the application is running
@@ -46,6 +56,11 @@ pipeline {
                                             kill -9 \$(cat ${pidFile}) || echo "Failed to stop the application."
                                             rm -f ${pidFile}
                                         fi
+
+                                        # Export environment variables
+                                        export DB_URL=${DB_URL}
+                                        export DB_USERNAME=${DB_USERNAME}
+                                        export DB_PASSWORD=${DB_PASSWORD}
 
                                         # Start the new application
                                         echo "Starting the new application..."
